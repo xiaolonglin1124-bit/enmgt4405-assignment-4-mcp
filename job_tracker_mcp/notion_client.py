@@ -6,7 +6,6 @@ import httpx
 
 from .errors import ExternalServiceError
 
-
 NOTION_API_BASE = "https://api.notion.com/v1"
 NOTION_API_VERSION = "2026-03-11"
 
@@ -50,7 +49,9 @@ class NotionJobClient:
             "Status": {"select": {"name": status}},
             "Applied Date": {"date": {"start": applied_date}},
             "Job URL": {"url": job_url},
-            "Notes": {"rich_text": [{"text": {"content": notes}}]} if notes else {"rich_text": []},
+            "Notes": {"rich_text": [{"text": {"content": notes}}]}
+            if notes
+            else {"rich_text": []},
         }
         if follow_up_date:
             properties["Follow-up Date"] = {"date": {"start": follow_up_date}}
@@ -83,9 +84,7 @@ class NotionJobClient:
     ) -> list[dict[str, Any]]:
         filters: list[dict[str, Any]] = []
         if status != "All":
-            filters.append(
-                {"property": "Status", "select": {"equals": status}}
-            )
+            filters.append({"property": "Status", "select": {"equals": status}})
         if follow_up_before:
             filters.append(
                 {
@@ -96,9 +95,7 @@ class NotionJobClient:
 
         payload: dict[str, Any] = {
             "page_size": limit,
-            "sorts": [
-                {"property": "Follow-up Date", "direction": "ascending"}
-            ],
+            "sorts": [{"property": "Follow-up Date", "direction": "ascending"}],
         }
         if len(filters) == 1:
             payload["filter"] = filters[0]
@@ -132,12 +129,10 @@ class NotionJobClient:
             "id": page.get("id", ""),
             "notion_url": page.get("url", ""),
             "role": _plain_text(properties.get("Role", {}).get("title", [])),
-            "company": _plain_text(
-                properties.get("Company", {}).get("rich_text", [])
+            "company": _plain_text(properties.get("Company", {}).get("rich_text", [])),
+            "status": (properties.get("Status", {}).get("select") or {}).get(
+                "name", ""
             ),
-            "status": (
-                properties.get("Status", {}).get("select") or {}
-            ).get("name", ""),
             "applied_date": _date_start(properties.get("Applied Date", {})),
             "follow_up_date": _date_start(properties.get("Follow-up Date", {})),
             "job_url": properties.get("Job URL", {}).get("url") or "",

@@ -41,9 +41,7 @@ class JobApplicationService:
             "role": validate_text(role, "role", 200),
             "job_url": validate_url(job_url),
             "applied_date": validate_iso_date(applied_date, "applied_date"),
-            "follow_up_date": validate_optional_date(
-                follow_up_date, "follow_up_date"
-            ),
+            "follow_up_date": validate_optional_date(follow_up_date, "follow_up_date"),
             "notes": validate_optional_text(notes, "notes", 2000),
             "status": validate_status(status),
         }
@@ -59,9 +57,7 @@ class JobApplicationService:
     ) -> dict[str, Any]:
         self._limiter.check("list_job_applications")
         validated_status = validate_status(status, allow_all=True)
-        validated_date = validate_optional_date(
-            follow_up_before, "follow_up_before"
-        )
+        validated_date = validate_optional_date(follow_up_before, "follow_up_before")
         validated_limit = validate_limit(limit)
         results = self._notion.list_applications(
             status=validated_status,

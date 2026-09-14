@@ -1,7 +1,8 @@
-import pytest
-
-from job_tracker_mcp.errors import RateLimitExceeded
 from job_tracker_mcp.rate_limiter import SlidingWindowRateLimiter
+from job_tracker_mcp.server import _safe_tool_call
+from job_tracker_mcp.service import JobApplicationService
+
+from .fakes import FakeNotionClient
 
 
 def test_sixth_call_is_blocked_in_demo_configuration() -> None:
@@ -11,14 +12,19 @@ def test_sixth_call_is_blocked_in_demo_configuration() -> None:
         window_seconds=60,
         clock=lambda: now,
     )
+    notion = FakeNotionClient()
+    service = JobApplicationService(notion, limiter)
 
     for _ in range(5):
-        limiter.check("list_job_applications")
+        result = _safe_tool_call(service.list_job_applications)
+        assert result["success"] is True
 
-    with pytest.raises(RateLimitExceeded) as blocked:
-        limiter.check("list_job_applications")
+    blocked = _safe_tool_call(service.list_job_applications)
 
-    assert blocked.value.retry_after_seconds == 61
+    assert blocked["success"] is False
+    assert blocked["error_code"] == "RATE_LIMIT_EXCEEDED"
+    assert blocked["retry_after_seconds"] == 61
+    assert len(notion.list_calls) == 5
 
 
 def test_calls_are_allowed_again_after_window() -> None:

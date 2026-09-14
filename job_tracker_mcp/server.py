@@ -1,7 +1,7 @@
 """MCP protocol layer exposing two tools and one prompt."""
 
-from collections.abc import Callable
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from mcp.server import MCPServer
@@ -11,7 +11,6 @@ from .errors import ExternalServiceError, RateLimitExceeded, ValidationError
 from .notion_client import NotionJobClient
 from .rate_limiter import SlidingWindowRateLimiter
 from .service import JobApplicationService
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,7 +68,7 @@ def _safe_tool_call(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
             "error_code": "EXTERNAL_SERVICE_ERROR",
             "message": "Unable to access the job application database.",
         }
-    except Exception:
+    except Exception:  # noqa: BLE001 - this is the final public safety boundary
         # Deliberately omit exception text and traceback: either could contain a
         # token, request header, local path, or third-party response body.
         logger.error("Unexpected internal tool failure")

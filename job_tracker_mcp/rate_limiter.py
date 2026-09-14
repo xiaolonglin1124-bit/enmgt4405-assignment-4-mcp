@@ -1,9 +1,9 @@
 """A small, thread-safe sliding-window rate limiter."""
 
+import time
 from collections import defaultdict, deque
 from collections.abc import Callable
 from threading import Lock
-import time
 
 from .errors import RateLimitExceeded
 
