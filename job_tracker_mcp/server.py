@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from mcp.server import MCPServer
+from mcp.server.fastmcp import FastMCP
 
 from .config import ConfigurationError, load_settings
 from .errors import ExternalServiceError, RateLimitExceeded, ValidationError
@@ -15,9 +15,9 @@ from .service import JobApplicationService
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# MCPServer, decorators, and stdio run pattern are based on the official MCP
+# FastMCP, decorators, and stdio run pattern are based on the official MCP
 # Python SDK documentation: https://github.com/modelcontextprotocol/python-sdk
-mcp = MCPServer("Job Application Tracker")
+mcp = FastMCP("Job Application Tracker")
 _service: JobApplicationService | None = None
 
 

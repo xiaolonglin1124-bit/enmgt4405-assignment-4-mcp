@@ -9,6 +9,8 @@ A local Python MCP server that lets Claude Desktop add and query job application
 - Authentication: Notion integration token in a local `.env` file
 - Best practices: local rate limiting and safe error disclosure
 - Transport: local `stdio`
+- MCP SDK: Python SDK 1.x compatibility line, pinned below 2.0 for reliable
+  Claude Desktop handshake support
 
 ### Tools
 
@@ -196,7 +198,7 @@ Notion response bodies, authorization headers, tokens, local paths, and tracebac
 
 ## Code references
 
-- MCP server registration and stdio run pattern: [official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- MCP server registration and stdio run pattern: [official MCP Python SDK v1.x](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x)
 - Notion page creation payload: [Notion Create a page](https://developers.notion.com/reference/post-page)
 - Notion query filters: [Notion Query a data source](https://developers.notion.com/reference/query-a-data-source)
 

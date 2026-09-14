@@ -1,6 +1,9 @@
 import asyncio
+import sys
+from pathlib import Path
 
-from mcp import Client
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 import job_tracker_mcp.server as server_module
 from job_tracker_mcp.rate_limiter import SlidingWindowRateLimiter
@@ -8,10 +11,20 @@ from job_tracker_mcp.service import JobApplicationService
 
 from .fakes import FakeNotionClient
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def test_mcp_exposes_required_tools_and_prompt() -> None:
     async def inspect_server() -> None:
-        async with Client(server_module.mcp) as client:
+        params = StdioServerParameters(
+            command=sys.executable,
+            args=[str(PROJECT_ROOT / "server.py")],
+        )
+        async with (
+            stdio_client(params) as (read, write),
+            ClientSession(read, write) as client,
+        ):
+            await client.initialize()
             tools = await client.list_tools()
             prompts = await client.list_prompts()
             rendered = await client.get_prompt(
@@ -30,7 +43,7 @@ def test_mcp_exposes_required_tools_and_prompt() -> None:
     asyncio.run(inspect_server())
 
 
-def test_mcp_tool_can_be_called_through_protocol(monkeypatch) -> None:
+def test_mcp_tool_can_be_called_through_server(monkeypatch) -> None:
     notion = FakeNotionClient()
     service = JobApplicationService(
         notion,
@@ -39,20 +52,17 @@ def test_mcp_tool_can_be_called_through_protocol(monkeypatch) -> None:
     monkeypatch.setattr(server_module, "_service", service)
 
     async def call_tool() -> None:
-        async with Client(server_module.mcp) as client:
-            result = await client.call_tool(
-                "add_job_application",
-                {
-                    "company": "Adobe",
-                    "role": "Product Designer",
-                    "job_url": "https://example.com/jobs/123",
-                    "applied_date": "2026-09-13",
-                },
-            )
+        _, structured = await server_module.mcp.call_tool(
+            "add_job_application",
+            {
+                "company": "Adobe",
+                "role": "Product Designer",
+                "job_url": "https://example.com/jobs/123",
+                "applied_date": "2026-09-13",
+            },
+        )
 
-            assert result.is_error is False
-            assert result.structured_content is not None
-            assert result.structured_content["success"] is True
-            assert result.structured_content["application"]["company"] == "Adobe"
+        assert structured["success"] is True
+        assert structured["application"]["company"] == "Adobe"
 
     asyncio.run(call_tool())
