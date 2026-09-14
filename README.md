@@ -34,10 +34,14 @@ Install the recommended Python and Pylance extensions when VS Code asks.
 The assignment recommends `uv`:
 
 ```bash
-uv venv
+uv venv --seed
 source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
+
+The `--seed` option installs `pip` in the environment. VS Code's Python
+Environments extension uses `python -m pip list` to display installed packages,
+so seeding prevents repeated `Error refreshing packages` notifications.
 
 If `uv` is not installed, standard Python also works:
 
