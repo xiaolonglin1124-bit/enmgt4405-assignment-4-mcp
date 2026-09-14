@@ -81,7 +81,11 @@ Add these Status options exactly:
 1. Create an internal integration in the Notion developer portal.
 2. Give it read and insert-content capabilities.
 3. In the Notion database menu, choose **Add connections** and share the database with the integration.
-4. Copy the integration token and the data source ID.
+4. Copy the integration token.
+5. In the database settings, open **Manage data sources**, open the data
+   source's `•••` menu, and choose **Copy data source ID**. A database ID and a
+   data source ID are different in the current Notion API, so use the copied
+   data source ID in `.env`.
 
 The official API requires the target data source to be shared with the connection. An unshared source may appear as a `404` response.
 
