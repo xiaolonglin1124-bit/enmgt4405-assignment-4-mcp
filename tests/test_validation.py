@@ -1,7 +1,7 @@
 import pytest
 
-from job_tracker_mcp.errors import ValidationError
-from job_tracker_mcp.validators import (
+from gmail_interview_scheduler_mcp.errors import ValidationError
+from gmail_interview_scheduler_mcp.validators import (
     validate_datetime_range,
     validate_optional_url,
     validate_timezone,

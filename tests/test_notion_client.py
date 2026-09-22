@@ -3,8 +3,11 @@ import json
 import httpx
 import pytest
 
-from job_tracker_mcp.errors import ExternalServiceError
-from job_tracker_mcp.notion_client import NOTION_API_VERSION, NotionScheduleClient
+from gmail_interview_scheduler_mcp.errors import ExternalServiceError
+from gmail_interview_scheduler_mcp.notion_client import (
+    NOTION_API_VERSION,
+    NotionScheduleClient,
+)
 
 
 def test_create_interview_builds_expected_notion_request() -> None:

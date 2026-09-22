@@ -1,6 +1,6 @@
-from job_tracker_mcp.rate_limiter import SlidingWindowRateLimiter
-from job_tracker_mcp.server import _safe_tool_call
-from job_tracker_mcp.service import InterviewScheduleService
+from gmail_interview_scheduler_mcp.rate_limiter import SlidingWindowRateLimiter
+from gmail_interview_scheduler_mcp.server import _safe_tool_call
+from gmail_interview_scheduler_mcp.service import InterviewScheduleService
 
 from .fakes import FakeGmailClient, FakeNotionClient
 

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from job_tracker_mcp.config import ConfigurationError, load_settings
+from gmail_interview_scheduler_mcp.config import ConfigurationError, load_settings
 
 
 def test_settings_require_dedicated_interview_data_source(tmp_path: Path) -> None:

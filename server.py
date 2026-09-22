@@ -1,6 +1,6 @@
 """Executable entry point for Claude Desktop and the MCP Inspector."""
 
-from job_tracker_mcp.server import main, mcp
+from gmail_interview_scheduler_mcp.server import main, mcp
 
 __all__ = ["main", "mcp"]
 

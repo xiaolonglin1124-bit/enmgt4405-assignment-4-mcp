@@ -34,7 +34,7 @@ interviews to a Notion timeline.
 Open this folder, not its parent folder:
 
 ```text
-job-application-tracker-mcp
+gmail-interview-scheduler-mcp
 ```
 
 Install the recommended Python and Pylance extensions when VS Code asks.

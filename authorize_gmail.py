@@ -5,7 +5,7 @@ from pathlib import Path
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-from job_tracker_mcp.gmail_client import GMAIL_READONLY_SCOPE
+from gmail_interview_scheduler_mcp.gmail_client import GMAIL_READONLY_SCOPE
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 

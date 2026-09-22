@@ -1,4 +1,4 @@
-from job_tracker_mcp.server import _safe_tool_call
+from gmail_interview_scheduler_mcp.server import _safe_tool_call
 
 
 def test_unexpected_exception_does_not_disclose_sensitive_details() -> None:

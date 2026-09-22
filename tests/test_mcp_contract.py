@@ -5,9 +5,9 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-import job_tracker_mcp.server as server_module
-from job_tracker_mcp.rate_limiter import SlidingWindowRateLimiter
-from job_tracker_mcp.service import InterviewScheduleService
+import gmail_interview_scheduler_mcp.server as server_module
+from gmail_interview_scheduler_mcp.rate_limiter import SlidingWindowRateLimiter
+from gmail_interview_scheduler_mcp.service import InterviewScheduleService
 
 from .fakes import FakeGmailClient, FakeNotionClient
 

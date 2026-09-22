@@ -2,7 +2,10 @@ import base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from job_tracker_mcp.gmail_client import GmailInterviewClient, parse_interview_message
+from gmail_interview_scheduler_mcp.gmail_client import (
+    GmailInterviewClient,
+    parse_interview_message,
+)
 
 
 def encoded(value: str) -> str:
