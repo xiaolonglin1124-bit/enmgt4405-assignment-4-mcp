@@ -7,9 +7,9 @@ from mcp.client.stdio import stdio_client
 
 import job_tracker_mcp.server as server_module
 from job_tracker_mcp.rate_limiter import SlidingWindowRateLimiter
-from job_tracker_mcp.service import JobApplicationService
+from job_tracker_mcp.service import InterviewScheduleService
 
-from .fakes import FakeNotionClient
+from .fakes import FakeGmailClient, FakeNotionClient
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,15 +28,16 @@ def test_mcp_exposes_required_tools_and_prompt() -> None:
             tools = await client.list_tools()
             prompts = await client.list_prompts()
             rendered = await client.get_prompt(
-                "weekly_job_search_review", {"days": "7"}
+                "weekly_interview_schedule_review",
+                {"week_start": "2026-09-21", "timezone": "America/New_York"},
             )
 
             assert {tool.name for tool in tools.tools} == {
-                "add_job_application",
-                "list_job_applications",
+                "list_weekly_interview_invites",
+                "add_interview_to_notion",
             }
             assert {prompt.name for prompt in prompts.prompts} == {
-                "weekly_job_search_review"
+                "weekly_interview_schedule_review"
             }
             assert len(rendered.messages) == 1
 
@@ -44,25 +45,23 @@ def test_mcp_exposes_required_tools_and_prompt() -> None:
 
 
 def test_mcp_tool_can_be_called_through_server(monkeypatch) -> None:
-    notion = FakeNotionClient()
-    service = JobApplicationService(
-        notion,
+    service = InterviewScheduleService(
+        FakeGmailClient(),
+        FakeNotionClient(),
         SlidingWindowRateLimiter(max_calls=20, window_seconds=60),
     )
     monkeypatch.setattr(server_module, "_service", service)
 
     async def call_tool() -> None:
         _, structured = await server_module.mcp.call_tool(
-            "add_job_application",
+            "list_weekly_interview_invites",
             {
-                "company": "Adobe",
-                "role": "Product Designer",
-                "job_url": "https://example.com/jobs/123",
-                "applied_date": "2026-09-13",
+                "week_start": "2026-09-21",
+                "timezone": "America/New_York",
             },
         )
 
         assert structured["success"] is True
-        assert structured["application"]["company"] == "Adobe"
+        assert structured["week_start"] == "2026-09-21"
 
     asyncio.run(call_tool())

@@ -8,32 +8,34 @@ from mcp.server.fastmcp import FastMCP
 
 from .config import ConfigurationError, load_settings
 from .errors import ExternalServiceError, RateLimitExceeded, ValidationError
-from .notion_client import NotionJobClient
+from .gmail_client import GmailInterviewClient
+from .notion_client import NotionScheduleClient
 from .rate_limiter import SlidingWindowRateLimiter
-from .service import JobApplicationService
+from .service import InterviewScheduleService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# FastMCP, decorators, and stdio run pattern are based on the official MCP
-# Python SDK documentation: https://github.com/modelcontextprotocol/python-sdk
-mcp = FastMCP("Job Application Tracker")
-_service: JobApplicationService | None = None
+# FastMCP decorators and the stdio run pattern follow the official MCP Python
+# SDK documentation: https://github.com/modelcontextprotocol/python-sdk/tree/v1.x
+mcp = FastMCP("Gmail Interview Scheduler")
+_service: InterviewScheduleService | None = None
 
 
-def _get_service() -> JobApplicationService:
+def _get_service() -> InterviewScheduleService:
     global _service
     if _service is None:
         settings = load_settings()
-        notion = NotionJobClient(
+        gmail = GmailInterviewClient.from_token(settings.gmail_token_path)
+        notion = NotionScheduleClient(
             settings.notion_token,
-            settings.notion_data_source_id,
+            settings.notion_interview_data_source_id,
         )
         limiter = SlidingWindowRateLimiter(
             settings.rate_limit_calls,
             settings.rate_limit_window_seconds,
         )
-        _service = JobApplicationService(notion, limiter)
+        _service = InterviewScheduleService(gmail, notion, limiter)
     return _service
 
 
@@ -62,15 +64,15 @@ def _safe_tool_call(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
             "message": "The server is not configured. Follow the README setup steps.",
         }
     except ExternalServiceError:
-        logger.error("External job application service request failed")
+        logger.error("External Gmail or Notion request failed")
         return {
             "success": False,
             "error_code": "EXTERNAL_SERVICE_ERROR",
-            "message": "Unable to access the job application database.",
+            "message": "Unable to access Gmail or the Notion interview schedule.",
         }
-    except Exception:  # noqa: BLE001 - this is the final public safety boundary
-        # Deliberately omit exception text and traceback: either could contain a
-        # token, request header, local path, or third-party response body.
+    except Exception:  # noqa: BLE001 - final public safety boundary
+        # Never expose exception text or tracebacks: they can contain OAuth
+        # tokens, email content, request headers, local paths, or API responses.
         logger.error("Unexpected internal tool failure")
         return {
             "success": False,
@@ -80,66 +82,77 @@ def _safe_tool_call(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
 
 
 @mcp.tool()
-def add_job_application(
-    company: str,
-    role: str,
-    job_url: str,
-    applied_date: str,
-    follow_up_date: str | None = None,
-    notes: str = "",
-    status: str = "Applied",
+def list_weekly_interview_invites(
+    week_start: str | None = None,
+    timezone: str = "America/New_York",
+    lookback_days: int = 90,
+    limit: int = 50,
 ) -> dict[str, Any]:
-    """Add a job application to the configured Notion data source.
+    """Read Gmail and list interview invitations scheduled for one week.
 
-    Dates must use YYYY-MM-DD. Status may be Wishlist, Applied, Interview,
-    Offer, Rejected, or Withdrawn.
+    week_start may be any date within the desired week and must use YYYY-MM-DD.
+    Calendar-backed invitations are returned separately from emails that need
+    manual review. This tool never changes Gmail or Notion.
     """
     return _safe_tool_call(
-        lambda: _get_service().add_job_application(
-            company=company,
-            role=role,
-            job_url=job_url,
-            applied_date=applied_date,
-            follow_up_date=follow_up_date,
-            notes=notes,
-            status=status,
-        )
-    )
-
-
-@mcp.tool()
-def list_job_applications(
-    status: str = "All",
-    follow_up_before: str | None = None,
-    limit: int = 20,
-) -> dict[str, Any]:
-    """List job applications, optionally filtered by status and follow-up date.
-
-    Status may be All, Wishlist, Applied, Interview, Offer, Rejected, or
-    Withdrawn. follow_up_before must use YYYY-MM-DD.
-    """
-    return _safe_tool_call(
-        lambda: _get_service().list_job_applications(
-            status=status,
-            follow_up_before=follow_up_before,
+        lambda: _get_service().list_weekly_interview_invites(
+            week_start=week_start,
+            timezone=timezone,
+            lookback_days=lookback_days,
             limit=limit,
         )
     )
 
 
-@mcp.prompt()
-def weekly_job_search_review(days: int = 7) -> str:
-    """Guide Claude through a structured review of job applications."""
-    safe_days = min(max(days, 1), 30)
-    return f"""You are helping the user review their job search for the next {safe_days} days.
+@mcp.tool()
+def add_interview_to_notion(
+    message_id: str,
+    company: str,
+    role: str,
+    start_time: str,
+    end_time: str | None = None,
+    title: str = "Interview",
+    location: str = "",
+    meeting_url: str = "",
+    recruiter: str = "",
+    notes: str = "",
+) -> dict[str, Any]:
+    """Add one user-confirmed Gmail interview invitation to Notion.
 
-1. Ask for today's date if it is not available in the conversation.
-2. Use list_job_applications to retrieve relevant applications.
-3. Identify overdue and upcoming follow-ups.
-4. Group applications by status and prioritize concrete next actions.
-5. Produce a concise {safe_days}-day plan with dates.
-6. Never add or change an application without explicit user confirmation.
-7. Do not invent company responses, deadlines, or application details.
+    start_time and end_time must be ISO 8601 date-times with timezone offsets.
+    Reusing a Gmail message ID is safe: duplicate rows are not created.
+    """
+    return _safe_tool_call(
+        lambda: _get_service().add_interview_to_notion(
+            message_id=message_id,
+            company=company,
+            role=role,
+            start_time=start_time,
+            end_time=end_time,
+            title=title,
+            location=location,
+            meeting_url=meeting_url,
+            recruiter=recruiter,
+            notes=notes,
+        )
+    )
+
+
+@mcp.prompt()
+def weekly_interview_schedule_review(
+    week_start: str = "this week",
+    timezone: str = "America/New_York",
+) -> str:
+    """Guide Claude through reviewing Gmail invites and syncing them safely."""
+    return f"""Help the user build their interview schedule for {week_start} in {timezone}.
+
+1. Call list_weekly_interview_invites for the requested week and timezone.
+2. Show calendar-backed invitations in chronological order.
+3. Show needs_review emails separately; never invent a missing time, company, or role.
+4. Ask the user to confirm which invitations should be written to Notion.
+5. Only after confirmation, call add_interview_to_notion once per confirmed interview.
+6. Report duplicates as already scheduled rather than treating them as failures.
+7. Finish with a concise preparation checklist and any scheduling conflicts.
 """
 
 

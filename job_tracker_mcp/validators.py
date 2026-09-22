@@ -1,8 +1,9 @@
 """Validation helpers for tool inputs."""
 
 import re
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import ValidationError
 
@@ -28,7 +29,7 @@ def validate_text(value: str, field: str, max_length: int) -> str:
     return cleaned
 
 
-def validate_optional_text(value: str, field: str, max_length: int) -> str:
+def validate_optional_text(value: str | None, field: str, max_length: int) -> str:
     if not value:
         return ""
     return validate_text(value, field, max_length)
@@ -53,6 +54,46 @@ def validate_url(value: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValidationError("job_url must be a valid HTTP or HTTPS URL.")
     return cleaned
+
+
+def validate_optional_url(value: str | None, field: str) -> str:
+    if value is None or not value.strip():
+        return ""
+    cleaned = validate_text(value, field, 2048)
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValidationError(f"{field} must be a valid HTTP or HTTPS URL.")
+    return cleaned
+
+
+def validate_timezone(value: str) -> ZoneInfo:
+    cleaned = validate_text(value, "timezone", 100)
+    try:
+        return ZoneInfo(cleaned)
+    except ZoneInfoNotFoundError as exc:
+        raise ValidationError("timezone must be a valid IANA timezone name.") from exc
+
+
+def validate_datetime(value: str, field: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(
+            f"{field} must be an ISO 8601 date-time with a timezone offset."
+        ) from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValidationError(f"{field} must include a timezone offset.")
+    return parsed
+
+
+def validate_datetime_range(start: str, end: str | None) -> tuple[str, str | None]:
+    start_value = validate_datetime(start, "start_time")
+    if end is None or not end.strip():
+        return start_value.isoformat(), None
+    end_value = validate_datetime(end, "end_time")
+    if end_value <= start_value:
+        raise ValidationError("end_time must be later than start_time.")
+    return start_value.isoformat(), end_value.isoformat()
 
 
 def validate_status(value: str, allow_all: bool = False) -> str:

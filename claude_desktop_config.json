@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "job-application-tracker": {
+    "gmail-interview-scheduler": {
       "command": "/Users/linxiaolong/Documents/Codex/2026-09-13/z/outputs/job-application-tracker-mcp/.venv/bin/python",
       "args": [
         "/Users/linxiaolong/Documents/Codex/2026-09-13/z/outputs/job-application-tracker-mcp/server.py"

@@ -4,10 +4,10 @@ import httpx
 import pytest
 
 from job_tracker_mcp.errors import ExternalServiceError
-from job_tracker_mcp.notion_client import NOTION_API_VERSION, NotionJobClient
+from job_tracker_mcp.notion_client import NOTION_API_VERSION, NotionScheduleClient
 
 
-def test_create_application_builds_expected_notion_request() -> None:
+def test_create_interview_builds_expected_notion_request() -> None:
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -21,20 +21,24 @@ def test_create_application_builds_expected_notion_request() -> None:
             json={"id": "page-123", "url": "https://notion.so/page-123"},
         )
 
-    client = NotionJobClient(
+    client = NotionScheduleClient(
         "test-token",
         "data-source-123",
         transport=httpx.MockTransport(handler),
     )
     try:
-        result = client.create_application(
+        result = client.create_interview(
+            message_id="18abc123",
             company="Adobe",
             role="Product Designer",
-            job_url="https://example.com/jobs/123",
-            status="Applied",
-            applied_date="2026-09-13",
-            follow_up_date="2026-09-20",
-            notes="Portfolio submitted",
+            title="Portfolio Interview",
+            start_time="2026-09-23T10:00:00-04:00",
+            end_time="2026-09-23T11:00:00-04:00",
+            location="Remote",
+            meeting_url="https://meet.google.com/abc-defg-hij",
+            recruiter="recruiter@example.com",
+            gmail_url="https://mail.google.com/mail/u/0/#all/18abc123",
+            notes="Prepare portfolio",
         )
     finally:
         client.close()
@@ -49,13 +53,14 @@ def test_create_application_builds_expected_notion_request() -> None:
         "type": "data_source_id",
         "data_source_id": "data-source-123",
     }
-    assert body["properties"]["Role"]["title"][0]["text"]["content"] == (
-        "Product Designer"
+    assert body["properties"]["Interview"]["title"][0]["text"]["content"] == (
+        "Portfolio Interview"
     )
+    assert body["properties"]["Time"]["date"]["end"].endswith("-04:00")
     assert result["id"] == "page-123"
 
 
-def test_list_applications_builds_filters_and_parses_result() -> None:
+def test_duplicate_lookup_uses_gmail_message_id_filter() -> None:
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -63,48 +68,24 @@ def test_list_applications_builds_filters_and_parses_result() -> None:
         captured["body"] = json.loads(request.content)
         return httpx.Response(
             200,
-            json={
-                "results": [
-                    {
-                        "id": "page-456",
-                        "url": "https://notion.so/page-456",
-                        "properties": {
-                            "Role": {"title": [{"plain_text": "Engineer"}]},
-                            "Company": {"rich_text": [{"plain_text": "Example Corp"}]},
-                            "Status": {"select": {"name": "Interview"}},
-                            "Applied Date": {"date": {"start": "2026-09-01"}},
-                            "Follow-up Date": {"date": {"start": "2026-09-15"}},
-                            "Job URL": {"url": "https://example.com/job"},
-                            "Notes": {"rich_text": [{"plain_text": "Phone screen"}]},
-                        },
-                    }
-                ]
-            },
+            json={"results": [{"id": "existing", "url": "https://notion.so/x"}]},
         )
 
-    client = NotionJobClient(
+    client = NotionScheduleClient(
         "test-token",
         "data-source-123",
         transport=httpx.MockTransport(handler),
     )
     try:
-        results = client.list_applications(
-            status="Interview",
-            follow_up_before="2026-09-30",
-            limit=10,
-        )
+        result = client.find_by_gmail_message_id("18abc123")
     finally:
         client.close()
 
     body = captured["body"]
     assert isinstance(body, dict)
     assert captured["path"] == "/v1/data_sources/data-source-123/query"
-    assert body["filter"]["and"][0] == {
-        "property": "Status",
-        "select": {"equals": "Interview"},
-    }
-    assert results[0]["company"] == "Example Corp"
-    assert results[0]["follow_up_date"] == "2026-09-15"
+    assert body["filter"]["rich_text"]["equals"] == "18abc123"
+    assert result == {"id": "existing", "url": "https://notion.so/x"}
 
 
 def test_notion_error_body_is_not_disclosed() -> None:
@@ -117,14 +98,14 @@ def test_notion_error_body_is_not_disclosed() -> None:
             request=request,
         )
 
-    client = NotionJobClient(
+    client = NotionScheduleClient(
         "test-token",
         "data-source-123",
         transport=httpx.MockTransport(handler),
     )
     try:
         with pytest.raises(ExternalServiceError) as caught:
-            client.list_applications(status="All", follow_up_before=None, limit=10)
+            client.find_by_gmail_message_id("18abc123")
     finally:
         client.close()
 

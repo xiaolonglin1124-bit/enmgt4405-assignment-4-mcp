@@ -1,1 +1,1 @@
-"""Tests for the Job Application Tracker MCP."""
+"""Tests for the Gmail Interview Scheduler MCP."""

@@ -1,47 +1,67 @@
 from job_tracker_mcp.rate_limiter import SlidingWindowRateLimiter
-from job_tracker_mcp.service import JobApplicationService
+from job_tracker_mcp.service import InterviewScheduleService
 
-from .fakes import FakeNotionClient
+from .fakes import FakeGmailClient, FakeNotionClient
 
 
-def make_service() -> tuple[JobApplicationService, FakeNotionClient]:
+def make_service() -> tuple[
+    InterviewScheduleService, FakeGmailClient, FakeNotionClient
+]:
+    gmail = FakeGmailClient()
     notion = FakeNotionClient()
     limiter = SlidingWindowRateLimiter(max_calls=20, window_seconds=60)
-    return JobApplicationService(notion, limiter), notion
+    return InterviewScheduleService(gmail, notion, limiter), gmail, notion
 
 
-def test_add_job_application_validates_and_creates_record() -> None:
-    service, notion = make_service()
+def test_list_weekly_invites_uses_monday_boundary() -> None:
+    service, gmail, _ = make_service()
+    gmail.result["scheduled"] = [
+        {"title": "Product interview", "start_time": "2026-09-23T10:00:00-04:00"}
+    ]
 
-    result = service.add_job_application(
-        company=" Adobe ",
-        role="Product Designer",
-        job_url="https://careers.example.com/jobs/123",
-        applied_date="2026-09-13",
-        follow_up_date="2026-09-20",
-        notes="Applied through the company website.",
+    result = service.list_weekly_interview_invites(
+        week_start="2026-09-23",
+        timezone="America/New_York",
+        lookback_days=90,
+        limit=20,
     )
 
     assert result["success"] is True
-    assert notion.created[0]["company"] == "Adobe"
-    assert notion.created[0]["status"] == "Applied"
+    assert result["week_start"] == "2026-09-21"
+    assert result["week_end_exclusive"] == "2026-09-28"
+    assert result["scheduled_count"] == 1
+    assert gmail.calls[0]["week_start"].isoformat() == "2026-09-21T00:00:00-04:00"
 
 
-def test_list_job_applications_passes_filters() -> None:
-    service, notion = make_service()
-    notion.list_result = [{"company": "Adobe", "status": "Interview"}]
+def test_add_interview_validates_and_creates_notion_row() -> None:
+    service, _, notion = make_service()
 
-    result = service.list_job_applications(
-        status="interview",
-        follow_up_before="2026-09-30",
-        limit=10,
+    result = service.add_interview_to_notion(
+        message_id="18abc123",
+        company=" Adobe ",
+        role="Product Designer",
+        title="Portfolio Interview",
+        start_time="2026-09-23T10:00:00-04:00",
+        end_time="2026-09-23T11:00:00-04:00",
+        meeting_url="https://meet.google.com/abc-defg-hij",
     )
 
-    assert result["count"] == 1
-    assert notion.list_calls == [
-        {
-            "status": "Interview",
-            "follow_up_before": "2026-09-30",
-            "limit": 10,
-        }
-    ]
+    assert result["success"] is True
+    assert result["created"] is True
+    assert notion.created[0]["company"] == "Adobe"
+    assert notion.created[0]["gmail_url"].endswith("18abc123")
+
+
+def test_add_interview_is_idempotent_by_gmail_message_id() -> None:
+    service, _, notion = make_service()
+    notion.existing = {"id": "existing", "url": "https://notion.so/existing"}
+
+    result = service.add_interview_to_notion(
+        message_id="18abc123",
+        company="Adobe",
+        role="Product Designer",
+        start_time="2026-09-23T10:00:00-04:00",
+    )
+
+    assert result["created"] is False
+    assert notion.created == []

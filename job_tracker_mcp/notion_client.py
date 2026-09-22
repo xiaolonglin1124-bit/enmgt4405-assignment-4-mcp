@@ -1,4 +1,4 @@
-"""Minimal Notion REST API client for the job application data source."""
+"""Minimal Notion REST API client for the interview schedule data source."""
 
 from typing import Any
 
@@ -10,7 +10,7 @@ NOTION_API_BASE = "https://api.notion.com/v1"
 NOTION_API_VERSION = "2026-03-11"
 
 
-class NotionJobClient:
+class NotionScheduleClient:
     def __init__(
         self,
         token: str,
@@ -32,30 +32,63 @@ class NotionJobClient:
     def close(self) -> None:
         self._client.close()
 
-    def create_application(
+    def find_by_gmail_message_id(self, message_id: str) -> dict[str, Any] | None:
+        payload = {
+            "page_size": 1,
+            "filter": {
+                "property": "Gmail Message ID",
+                "rich_text": {"equals": message_id},
+            },
+        }
+        # Endpoint and filter shape follow the official Query a Data Source API:
+        # https://developers.notion.com/reference/query-a-data-source
+        data = self._request(
+            "POST",
+            f"/data_sources/{self._data_source_id}/query",
+            json=payload,
+        )
+        results = data.get("results", [])
+        if not results:
+            return None
+        return {
+            "id": results[0].get("id", ""),
+            "url": results[0].get("url", ""),
+        }
+
+    def create_interview(
         self,
         *,
+        message_id: str,
         company: str,
         role: str,
-        job_url: str,
-        status: str,
-        applied_date: str,
-        follow_up_date: str | None,
+        title: str,
+        start_time: str,
+        end_time: str | None,
+        location: str,
+        meeting_url: str,
+        recruiter: str,
+        gmail_url: str,
         notes: str,
     ) -> dict[str, Any]:
-        properties: dict[str, Any] = {
-            "Role": {"title": [{"text": {"content": role}}]},
-            "Company": {"rich_text": [{"text": {"content": company}}]},
-            "Status": {"select": {"name": status}},
-            "Applied Date": {"date": {"start": applied_date}},
-            "Job URL": {"url": job_url},
-            "Notes": {"rich_text": [{"text": {"content": notes}}]}
-            if notes
-            else {"rich_text": []},
-        }
-        if follow_up_date:
-            properties["Follow-up Date"] = {"date": {"start": follow_up_date}}
+        date_value: dict[str, Any] = {"start": start_time}
+        if end_time:
+            date_value["end"] = end_time
 
+        properties: dict[str, Any] = {
+            "Interview": {"title": [_text(title)]},
+            "Company": {"rich_text": [_text(company)]},
+            "Role": {"rich_text": [_text(role)]},
+            "Time": {"date": date_value},
+            "Status": {"select": {"name": "Scheduled"}},
+            "Location": {"rich_text": [_text(location)]} if location else {"rich_text": []},
+            "Meeting URL": {"url": meeting_url or None},
+            "Recruiter": {"rich_text": [_text(recruiter)]}
+            if recruiter
+            else {"rich_text": []},
+            "Gmail URL": {"url": gmail_url},
+            "Gmail Message ID": {"rich_text": [_text(message_id)]},
+            "Notes": {"rich_text": [_text(notes)]} if notes else {"rich_text": []},
+        }
         payload = {
             "parent": {
                 "type": "data_source_id",
@@ -70,46 +103,11 @@ class NotionJobClient:
         return {
             "id": data.get("id", ""),
             "url": data.get("url", ""),
+            "title": title,
             "company": company,
             "role": role,
-            "status": status,
+            "start_time": start_time,
         }
-
-    def list_applications(
-        self,
-        *,
-        status: str,
-        follow_up_before: str | None,
-        limit: int,
-    ) -> list[dict[str, Any]]:
-        filters: list[dict[str, Any]] = []
-        if status != "All":
-            filters.append({"property": "Status", "select": {"equals": status}})
-        if follow_up_before:
-            filters.append(
-                {
-                    "property": "Follow-up Date",
-                    "date": {"on_or_before": follow_up_before},
-                }
-            )
-
-        payload: dict[str, Any] = {
-            "page_size": limit,
-            "sorts": [{"property": "Follow-up Date", "direction": "ascending"}],
-        }
-        if len(filters) == 1:
-            payload["filter"] = filters[0]
-        elif filters:
-            payload["filter"] = {"and": filters}
-
-        # Endpoint and filter shape follow the official Query a Data Source API:
-        # https://developers.notion.com/reference/query-a-data-source
-        data = self._request(
-            "POST",
-            f"/data_sources/{self._data_source_id}/query",
-            json=payload,
-        )
-        return [self._parse_page(page) for page in data.get("results", [])]
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
@@ -117,32 +115,11 @@ class NotionJobClient:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError):
-            # Do not retain or re-emit response bodies, headers, local paths, or tokens.
+            # Never retain or re-emit response bodies, headers, paths, or tokens.
             raise ExternalServiceError(
-                "The external job application service is unavailable."
+                "The external schedule service is unavailable."
             ) from None
 
-    @staticmethod
-    def _parse_page(page: dict[str, Any]) -> dict[str, Any]:
-        properties = page.get("properties", {})
-        return {
-            "id": page.get("id", ""),
-            "notion_url": page.get("url", ""),
-            "role": _plain_text(properties.get("Role", {}).get("title", [])),
-            "company": _plain_text(properties.get("Company", {}).get("rich_text", [])),
-            "status": (properties.get("Status", {}).get("select") or {}).get(
-                "name", ""
-            ),
-            "applied_date": _date_start(properties.get("Applied Date", {})),
-            "follow_up_date": _date_start(properties.get("Follow-up Date", {})),
-            "job_url": properties.get("Job URL", {}).get("url") or "",
-            "notes": _plain_text(properties.get("Notes", {}).get("rich_text", [])),
-        }
 
-
-def _plain_text(items: list[dict[str, Any]]) -> str:
-    return "".join(str(item.get("plain_text", "")) for item in items)
-
-
-def _date_start(prop: dict[str, Any]) -> str:
-    return (prop.get("date") or {}).get("start", "")
+def _text(value: str) -> dict[str, Any]:
+    return {"type": "text", "text": {"content": value}}

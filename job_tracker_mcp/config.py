@@ -1,4 +1,4 @@
-"""Configuration loaded directly from a local .env file."""
+"""Configuration loaded directly from local files, never process variables."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,7 +15,8 @@ class ConfigurationError(Exception):
 @dataclass(frozen=True)
 class Settings:
     notion_token: str
-    notion_data_source_id: str
+    notion_interview_data_source_id: str
+    gmail_token_path: Path
     rate_limit_calls: int = 5
     rate_limit_window_seconds: int = 60
 
@@ -26,11 +27,19 @@ def load_settings(env_path: Path | None = None) -> Settings:
     values = dotenv_values(path)
 
     token = (values.get("NOTION_TOKEN") or "").strip()
-    data_source_id = (values.get("NOTION_DATA_SOURCE_ID") or "").strip()
+    data_source_id = (values.get("NOTION_INTERVIEW_DATA_SOURCE_ID") or "").strip()
+    gmail_token_value = (values.get("GMAIL_TOKEN_PATH") or "token.json").strip()
+    gmail_token_path = Path(gmail_token_value).expanduser()
+    if not gmail_token_path.is_absolute():
+        gmail_token_path = PROJECT_ROOT / gmail_token_path
 
     if not token or not data_source_id:
         raise ConfigurationError(
             "Create .env from .env.example and provide the Notion credentials."
+        )
+    if not gmail_token_path.is_file():
+        raise ConfigurationError(
+            "Authorize Gmail first by running: python authorize_gmail.py"
         )
 
     try:
@@ -44,7 +53,8 @@ def load_settings(env_path: Path | None = None) -> Settings:
 
     return Settings(
         notion_token=token,
-        notion_data_source_id=data_source_id,
+        notion_interview_data_source_id=data_source_id,
+        gmail_token_path=gmail_token_path,
         rate_limit_calls=calls,
         rate_limit_window_seconds=window,
     )

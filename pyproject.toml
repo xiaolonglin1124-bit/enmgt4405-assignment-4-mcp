@@ -1,16 +1,20 @@
 [project]
-name = "job-application-tracker-mcp"
-version = "1.0.0"
-description = "A local MCP server that tracks job applications in Notion."
-requires-python = ">=3.10"
+name = "gmail-interview-scheduler-mcp"
+version = "2.0.0"
+description = "A local MCP server that reads Gmail interview invites and schedules them in Notion."
+requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=1.30,<2.0",
     "httpx>=0.28,<1.0",
     "python-dotenv>=1.1,<2.0",
+    "google-api-python-client>=2.0,<3.0",
+    "google-auth-httplib2>=0.2,<1.0",
+    "google-auth-oauthlib>=1.2,<2.0",
+    "icalendar>=6.0,<7.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3,<10.0"]
+dev = ["pytest>=8.3,<10.0", "ruff>=0.14,<1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
